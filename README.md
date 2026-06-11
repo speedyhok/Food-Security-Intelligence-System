@@ -231,9 +231,8 @@ food-security-intelligence/
 │
 ├── 1_Raw_Data/          Raw downloaded datasets
 ├── 2_Cleaned_Data/      Excel cleaned files
-├── 3_Master_File/       Merged master Excel file
-├── 4_SQL/               Database schema and queries
-├── 5_Python/            All 6 Python scripts
+├── 3_SQL/               Database schema and queries
+├── 4_Python/            All 6 Python scripts
 │   ├── config.py
 │   ├── script_1_clean.py
 │   ├── script_2_normalize.py
@@ -241,8 +240,8 @@ food-security-intelligence/
 │   ├── script_4_early_warning.py
 │   ├── script_5_population.py
 │   └── script_6_contagion.py
-├── 6_PowerBI/           Power BI dashboard file
-│   └── Food_crisis.pbix
+├── Food_crisis.pbix
+│  
 └── README.md
 ```
 
