@@ -1,0 +1,1339 @@
+CREATE TABLE gdp (
+    id SERIAL PRIMARY KEY,
+    country_name VARCHAR(100),
+    year INT,
+    gdp_per_capita NUMERIC(12,2)
+);
+
+CREATE TABLE rainfall (
+    id SERIAL PRIMARY KEY,
+    country_name VARCHAR(100),
+    year INT,
+    rainfall_mm NUMERIC(10,2)
+);
+
+CREATE TABLE crop_yield (
+    id SERIAL PRIMARY KEY,
+    country_name VARCHAR(100),
+    year INT,
+    yield_per_hectare NUMERIC(12,2)
+);
+
+CREATE TABLE food_prices (
+    id SERIAL PRIMARY KEY,
+    year INT,
+    cereals_price_index NUMERIC(10,2)
+);
+
+CREATE TABLE import_dependency (
+    id SERIAL PRIMARY KEY,
+    country_name VARCHAR(100),
+    year INT,
+    import_dependency_percent NUMERIC(5,2)
+);
+
+CREATE TABLE conflict (
+    id SERIAL PRIMARY KEY,
+    country_name VARCHAR(100),
+    year INT,
+    total_events INT,
+    total_fatalities INT,
+    conflict_score NUMERIC(10,2)
+);
+
+CREATE TABLE risk_scores (
+    id SERIAL PRIMARY KEY,
+    country_name VARCHAR(100),
+    year INT,
+    final_score NUMERIC(10,2),
+    risk_level VARCHAR(20)
+);
+
+COPY gdp(country_name, year, gdp_per_capita)
+FROM 'C:/SQL Ready Clean/gdp_clean.csv'
+DELIMITER ','
+CSV HEADER;
+
+select * from gdp;
+SELECT COUNT(*) FROM gdp;
+
+SELECT * 
+FROM gdp
+LIMIT 5;
+
+COPY rainfall(country_name, year, rainfall_mm)
+FROM 'C:/SQL Ready Clean/rainfall_clean.csv'
+DELIMITER ','
+CSV HEADER;
+
+SELECT * FROM rainfall;
+
+COPY crop_yield(country_name, year, yield_per_hectare)
+FROM 'C:/SQL Ready Clean/cereal_yield.csv'
+DELIMITER ','
+CSV HEADER;
+
+SELECT * FROM crop_yield;
+
+COPY food_prices(year, cereals_price_index)
+FROM 'C:/SQL Ready Clean/cereal_price_index.csv'
+DELIMITER ','
+CSV HEADER;
+
+SELECT * FROM food_prices;
+
+
+
+DROP TABLE import_dependency;
+
+CREATE TABLE import_dependency (
+    id SERIAL PRIMARY KEY,
+    country_name VARCHAR(100),
+    year INT,
+    import_dependency_percent NUMERIC(10,2)
+);
+
+COPY import_dependency(country_name, year, import_dependency_percent)
+FROM 'C:/SQL Ready Clean/import_dependency.csv'
+DELIMITER ','
+CSV HEADER;
+
+select * from import_dependency;
+
+COPY conflict(
+    year,
+    country_name,
+    total_events,
+    total_fatalities,
+    conflict_score
+)
+FROM 'C:/SQL Ready Clean/conflict_clean.csv'
+DELIMITER ','
+CSV HEADER;
+
+
+select * from conflict;
+
+-- Check row counts on everything
+SELECT 'gdp' AS table_name, COUNT(*) AS rows FROM gdp
+UNION ALL
+SELECT 'rainfall', COUNT(*) FROM rainfall
+UNION ALL
+SELECT 'crop_yield', COUNT(*) FROM crop_yield
+UNION ALL
+SELECT 'food_prices', COUNT(*) FROM food_prices
+UNION ALL
+SELECT 'import_dependency', COUNT(*) FROM import_dependency
+UNION ALL
+SELECT 'conflict', COUNT(*) FROM conflict;
+
+-- Check for nulls in critical columns
+SELECT COUNT(*) AS missing_gdp 
+FROM gdp 
+WHERE gdp_per_capita IS NULL;
+
+SELECT COUNT(*) AS missing_yield 
+FROM crop_yield 
+WHERE yield_per_hectare IS NULL;
+
+SELECT COUNT(*) AS missing_conflict 
+FROM conflict 
+WHERE conflict_score IS NULL;
+
+--Year range check
+SELECT 'gdp' AS table_name, MIN(year), MAX(year)
+FROM gdp
+
+UNION ALL
+
+SELECT 'rainfall', MIN(year), MAX(year)
+FROM rainfall
+
+UNION ALL
+
+SELECT 'crop_yield', MIN(year), MAX(year)
+FROM crop_yield
+
+UNION ALL
+
+SELECT 'conflict', MIN(year), MAX(year)
+FROM conflict
+
+UNION ALL
+
+SELECT 'food_prices', MIN(year), MAX(year)
+FROM food_prices
+
+UNION ALL
+
+SELECT 'import_dependency', MIN(year), MAX(year)
+FROM import_dependency;
+
+-- Check how many rows you keep after filtering
+SELECT COUNT(*) FROM gdp 
+WHERE year BETWEEN 2010 AND 2022;
+
+SELECT COUNT(*) FROM rainfall 
+WHERE year BETWEEN 2010 AND 2022;
+
+SELECT COUNT(*) FROM crop_yield 
+WHERE year BETWEEN 2010 AND 2022;
+
+SELECT COUNT(*) FROM conflict 
+WHERE year BETWEEN 2010 AND 2022;
+
+SELECT COUNT(*) FROM food_prices 
+WHERE year BETWEEN 2010 AND 2022;
+
+SELECT COUNT(*) FROM import_dependency 
+WHERE year BETWEEN 2010 AND 2022;
+
+SELECT 'GDP_NOT_IN_CONFLICT' AS check_type, country_name
+FROM (
+    SELECT DISTINCT country_name FROM gdp
+    EXCEPT
+    SELECT DISTINCT country_name FROM conflict
+) t
+
+UNION ALL
+
+SELECT 'CONFLICT_NOT_IN_GDP', country_name
+FROM (
+    SELECT DISTINCT country_name FROM conflict
+    EXCEPT
+    SELECT DISTINCT country_name FROM gdp
+) t
+
+UNION ALL
+
+SELECT 'GDP_NOT_IN_CROP_YIELD', country_name
+FROM (
+    SELECT DISTINCT country_name FROM gdp
+    EXCEPT
+    SELECT DISTINCT country_name FROM crop_yield
+) t
+
+UNION ALL
+
+SELECT 'GDP_NOT_IN_IMPORT_DEPENDENCY', country_name
+FROM (
+    SELECT DISTINCT country_name FROM gdp
+    EXCEPT
+    SELECT DISTINCT country_name FROM import_dependency
+) t
+
+UNION ALL
+
+SELECT 'GDP_NOT_IN_RAINFALL', country_name
+FROM (
+    SELECT DISTINCT country_name FROM gdp
+    EXCEPT
+    SELECT DISTINCT country_name FROM rainfall
+) t
+
+ORDER BY check_type, country_name;
+
+CREATE VIEW master_food_security AS
+SELECT 
+    g.country_name,
+    g.year,
+    g.gdp_per_capita,
+    r.rainfall_mm,
+    c.yield_per_hectare,
+    fp.cereals_price_index,
+    i.import_dependency_percent,
+    cf.conflict_score
+FROM gdp g
+LEFT JOIN rainfall r 
+    ON g.country_name = r.country_name 
+    AND g.year = r.year
+LEFT JOIN crop_yield c 
+    ON g.country_name = c.country_name 
+    AND g.year = c.year
+LEFT JOIN food_prices fp 
+    ON g.year = fp.year
+LEFT JOIN import_dependency i 
+    ON g.country_name = i.country_name 
+    AND g.year = i.year
+LEFT JOIN conflict cf 
+    ON g.country_name = cf.country_name 
+    AND g.year = cf.year
+WHERE g.year BETWEEN 2010 AND 2022;
+
+SELECT 
+    COUNT(*) AS total_rows,
+    COUNT(gdp_per_capita) AS has_gdp,
+    COUNT(rainfall_mm) AS has_rainfall,
+    COUNT(yield_per_hectare) AS has_yield,
+    COUNT(cereals_price_index) AS has_prices,
+    COUNT(import_dependency_percent) AS has_import,
+    COUNT(conflict_score) AS has_conflict
+FROM master_food_security;
+
+-- Check which tables have duplicates
+SELECT country_name, year, COUNT(*) 
+FROM gdp
+GROUP BY country_name, year
+HAVING COUNT(*) > 1
+LIMIT 20;
+
+SELECT country_name, year, COUNT(*) 
+FROM crop_yield
+GROUP BY country_name, year
+HAVING COUNT(*) > 1
+LIMIT 20;
+
+SELECT country_name, year, COUNT(*) 
+FROM conflict
+GROUP BY country_name, year
+HAVING COUNT(*) > 1
+LIMIT 20;
+
+-- Remove duplicates from gdp
+DELETE FROM gdp
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM gdp
+    GROUP BY country_name, year
+);
+
+-- Remove duplicates from crop_yield
+DELETE FROM crop_yield
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM crop_yield
+    GROUP BY country_name, year
+);
+
+-- Remove duplicates from conflict
+DELETE FROM conflict
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM conflict
+    GROUP BY country_name, year
+);
+
+-- Remove duplicates from rainfall
+DELETE FROM rainfall
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM rainfall
+    GROUP BY country_name, year
+);
+
+-- Remove duplicates from import_dependency
+DELETE FROM import_dependency
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM import_dependency
+    GROUP BY country_name, year
+);
+
+-- Check all tables for duplicates in one go
+SELECT 'gdp' AS table_name, country_name, year, COUNT(*) AS count
+FROM gdp
+GROUP BY country_name, year
+HAVING COUNT(*) > 1
+
+UNION ALL
+
+SELECT 'rainfall', country_name, year, COUNT(*)
+FROM rainfall
+GROUP BY country_name, year
+HAVING COUNT(*) > 1
+
+UNION ALL
+
+SELECT 'crop_yield', country_name, year, COUNT(*)
+FROM crop_yield
+GROUP BY country_name, year
+HAVING COUNT(*) > 1
+
+UNION ALL
+
+SELECT 'conflict', country_name, year, COUNT(*)
+FROM conflict
+GROUP BY country_name, year
+HAVING COUNT(*) > 1
+
+UNION ALL
+
+SELECT 'import_dependency', country_name, year, COUNT(*)
+FROM import_dependency
+GROUP BY country_name, year
+HAVING COUNT(*) > 1
+
+ORDER BY table_name, count DESC;
+
+-- Fix gdp
+DELETE FROM gdp
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM gdp
+    GROUP BY country_name, year
+);
+
+-- Fix rainfall
+DELETE FROM rainfall
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM rainfall
+    GROUP BY country_name, year
+);
+
+-- Fix crop_yield
+DELETE FROM crop_yield
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM crop_yield
+    GROUP BY country_name, year
+);
+
+-- Fix conflict
+DELETE FROM conflict
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM conflict
+    GROUP BY country_name, year
+);
+
+-- Fix import_dependency
+DELETE FROM import_dependency
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM import_dependency
+    GROUP BY country_name, year
+);
+
+-- This should return zero rows
+SELECT 'gdp' AS table_name, COUNT(*) AS duplicates
+FROM (
+    SELECT country_name, year, COUNT(*)
+    FROM gdp
+    GROUP BY country_name, year
+    HAVING COUNT(*) > 1
+) x
+
+UNION ALL
+
+SELECT 'rainfall', COUNT(*)
+FROM (
+    SELECT country_name, year, COUNT(*)
+    FROM rainfall
+    GROUP BY country_name, year
+    HAVING COUNT(*) > 1
+) x
+
+UNION ALL
+
+SELECT 'crop_yield', COUNT(*)
+FROM (
+    SELECT country_name, year, COUNT(*)
+    FROM crop_yield
+    GROUP BY country_name, year
+    HAVING COUNT(*) > 1
+) x
+
+UNION ALL
+
+SELECT 'conflict', COUNT(*)
+FROM (
+    SELECT country_name, year, COUNT(*)
+    FROM conflict
+    GROUP BY country_name, year
+    HAVING COUNT(*) > 1
+) x
+
+UNION ALL
+
+SELECT 'import_dependency', COUNT(*)
+FROM (
+    SELECT country_name, year, COUNT(*)
+    FROM import_dependency
+    GROUP BY country_name, year
+    HAVING COUNT(*) > 1
+) x;
+
+SELECT DISTINCT country_name 
+FROM gdp
+WHERE country_name ILIKE '%som%'
+OR country_name ILIKE '%syr%'
+OR country_name ILIKE '%yem%';
+
+SELECT DISTINCT country_name 
+FROM conflict
+WHERE country_name ILIKE '%som%'
+OR country_name ILIKE '%syr%'
+OR country_name ILIKE '%yem%';
+
+-- Standardize Syria
+UPDATE gdp SET country_name = 'Syria' 
+WHERE country_name = 'Syrian Arab Republic';
+
+UPDATE conflict SET country_name = 'Syria' 
+WHERE country_name = 'Syrian Arab Republic';
+
+UPDATE rainfall SET country_name = 'Syria' 
+WHERE country_name = 'Syrian Arab Republic';
+
+UPDATE crop_yield SET country_name = 'Syria' 
+WHERE country_name = 'Syrian Arab Republic';
+
+UPDATE import_dependency SET country_name = 'Syria' 
+WHERE country_name = 'Syrian Arab Republic';
+
+-- Standardize Yemen
+UPDATE gdp SET country_name = 'Yemen' 
+WHERE country_name = 'Yemen, Rep.';
+
+UPDATE conflict SET country_name = 'Yemen' 
+WHERE country_name = 'Yemen, Rep.';
+
+UPDATE rainfall SET country_name = 'Yemen' 
+WHERE country_name = 'Yemen, Rep.';
+
+UPDATE crop_yield SET country_name = 'Yemen' 
+WHERE country_name = 'Yemen, Rep.';
+
+UPDATE import_dependency SET country_name = 'Yemen' 
+WHERE country_name = 'Yemen, Rep.';
+
+SELECT DISTINCT country_name FROM gdp
+WHERE country_name ILIKE '%som%';
+
+SELECT DISTINCT country_name FROM conflict
+WHERE country_name ILIKE '%som%';
+
+SELECT DISTINCT country_name FROM crop_yield
+WHERE country_name ILIKE '%som%';
+
+
+-- See all the region/aggregate rows
+SELECT DISTINCT country_name FROM gdp
+WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM gdp WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM rainfall WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM crop_yield WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM import_dependency WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM conflict WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM gdp WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM rainfall WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM crop_yield WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM import_dependency WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+DELETE FROM conflict WHERE country_name IN (
+    'World', 'Euro area', 'North America',
+    'High income', 'Low income', 'OECD members',
+    'European Union', 'IBRD only', 'IDA only',
+    'Middle income', 'Upper middle income',
+    'Lower middle income', 'Low & middle income',
+    'East Asia & Pacific', 'Europe & Central Asia',
+    'Latin America & Caribbean',
+    'Middle East & North Africa',
+    'South Asia', 'Sub-Saharan Africa',
+    'Post-demographic dividend',
+    'Late-demographic dividend',
+    'Early-demographic dividend',
+    'Pre-demographic dividend'
+);
+
+SELECT COUNT(*) FROM gdp;
+SELECT COUNT(*) FROM risk_scores;
+
+DELETE FROM risk_scores;
+DELETE FROM predictions;
+
+-- Delete anything that is clearly not a country
+DELETE FROM gdp WHERE 
+    country_name LIKE '%IDA%'
+    OR country_name LIKE '%IBRD%'
+    OR country_name LIKE '%income%'
+    OR country_name LIKE '%Asia%'
+    OR country_name LIKE '%Africa%'
+    OR country_name LIKE '%Europe%'
+    OR country_name LIKE '%America%'
+    OR country_name LIKE '%dividend%'
+    OR country_name LIKE '%members%'
+    OR country_name LIKE '%total%'
+    OR country_name LIKE '%World%'
+    OR country_name LIKE '%Caribbean%'
+    OR country_name LIKE '%Pacific%'
+    OR country_name LIKE '%Saharan%'
+    OR country_name LIKE '%fragile%'
+    OR country_name LIKE '%blend%'
+    OR country_name LIKE '%situation%';
+
+DELETE FROM rainfall WHERE 
+    country_name LIKE '%IDA%'
+    OR country_name LIKE '%IBRD%'
+    OR country_name LIKE '%income%'
+    OR country_name LIKE '%Asia%'
+    OR country_name LIKE '%Africa%'
+    OR country_name LIKE '%Europe%'
+    OR country_name LIKE '%America%'
+    OR country_name LIKE '%dividend%'
+    OR country_name LIKE '%members%'
+    OR country_name LIKE '%total%'
+    OR country_name LIKE '%World%'
+    OR country_name LIKE '%Caribbean%'
+    OR country_name LIKE '%Pacific%'
+    OR country_name LIKE '%Saharan%'
+    OR country_name LIKE '%fragile%'
+    OR country_name LIKE '%blend%'
+    OR country_name LIKE '%situation%';
+
+DELETE FROM crop_yield WHERE 
+    country_name LIKE '%IDA%'
+    OR country_name LIKE '%IBRD%'
+    OR country_name LIKE '%income%'
+    OR country_name LIKE '%Asia%'
+    OR country_name LIKE '%Africa%'
+    OR country_name LIKE '%Europe%'
+    OR country_name LIKE '%America%'
+    OR country_name LIKE '%dividend%'
+    OR country_name LIKE '%members%'
+    OR country_name LIKE '%total%'
+    OR country_name LIKE '%World%'
+    OR country_name LIKE '%Caribbean%'
+    OR country_name LIKE '%Pacific%'
+    OR country_name LIKE '%Saharan%'
+    OR country_name LIKE '%fragile%'
+    OR country_name LIKE '%blend%'
+    OR country_name LIKE '%situation%';
+
+DELETE FROM import_dependency WHERE 
+    country_name LIKE '%IDA%'
+    OR country_name LIKE '%IBRD%'
+    OR country_name LIKE '%income%'
+    OR country_name LIKE '%Asia%'
+    OR country_name LIKE '%Africa%'
+    OR country_name LIKE '%Europe%'
+    OR country_name LIKE '%America%'
+    OR country_name LIKE '%dividend%'
+    OR country_name LIKE '%members%'
+    OR country_name LIKE '%total%'
+    OR country_name LIKE '%World%'
+    OR country_name LIKE '%Caribbean%'
+    OR country_name LIKE '%Pacific%'
+    OR country_name LIKE '%Saharan%'
+    OR country_name LIKE '%fragile%'
+    OR country_name LIKE '%blend%'
+    OR country_name LIKE '%situation%';
+
+DELETE FROM conflict WHERE 
+    country_name LIKE '%IDA%'
+    OR country_name LIKE '%IBRD%'
+    OR country_name LIKE '%income%'
+    OR country_name LIKE '%Asia%'
+    OR country_name LIKE '%Africa%'
+    OR country_name LIKE '%Europe%'
+    OR country_name LIKE '%America%'
+    OR country_name LIKE '%dividend%'
+    OR country_name LIKE '%members%'
+    OR country_name LIKE '%total%'
+    OR country_name LIKE '%World%'
+    OR country_name LIKE '%Caribbean%'
+    OR country_name LIKE '%Pacific%'
+    OR country_name LIKE '%Saharan%'
+    OR country_name LIKE '%fragile%'
+    OR country_name LIKE '%blend%'
+    OR country_name LIKE '%situation%';
+
+DELETE FROM risk_scores;
+DELETE FROM predictions;
+
+DROP TABLE IF EXISTS predictions;
+
+DROP TABLE IF EXISTS population_exposure;
+
+ROLLBACK;
+
+DROP TABLE IF EXISTS population_exposure;
+
+SELECT 'risk_scores'        AS table_name, 
+        COUNT(*) AS rows FROM risk_scores
+UNION ALL
+SELECT 'predictions',        COUNT(*) FROM predictions
+UNION ALL
+SELECT 'early_warning',      COUNT(*) FROM early_warning
+UNION ALL
+SELECT 'population_exposure',COUNT(*) FROM population_exposure
+UNION ALL
+SELECT 'contagion',          COUNT(*) FROM contagion;
+
+ALTER TABLE risk_scores 
+ADD COLUMN yield_norm FLOAT,
+ADD COLUMN conflict_norm FLOAT,
+ADD COLUMN rainfall_norm FLOAT,
+ADD COLUMN price_norm FLOAT,
+ADD COLUMN import_norm FLOAT,
+ADD COLUMN gdp_norm FLOAT;
+
+SELECT DISTINCT country_name 
+FROM risk_scores 
+ORDER BY country_name;
+
+-- Bolivia
+UPDATE risk_scores SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+UPDATE gdp SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+UPDATE rainfall SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+UPDATE crop_yield SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+UPDATE import_dependency SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+UPDATE conflict SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+UPDATE predictions SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+UPDATE early_warning SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+UPDATE population_exposure SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+UPDATE contagion SET country_name = 'Bolivia'
+WHERE country_name = 'Bolivia, Plurinational State of';
+
+-- Iran
+UPDATE risk_scores SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+UPDATE gdp SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+UPDATE rainfall SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+UPDATE crop_yield SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+UPDATE import_dependency SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+UPDATE conflict SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+UPDATE predictions SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+UPDATE early_warning SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+UPDATE population_exposure SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+UPDATE contagion SET country_name = 'Iran'
+WHERE country_name = 'Iran, Islamic Republic of';
+
+-- South Korea
+UPDATE risk_scores SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+UPDATE gdp SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+UPDATE rainfall SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+UPDATE crop_yield SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+UPDATE import_dependency SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+UPDATE conflict SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+UPDATE predictions SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+UPDATE early_warning SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+UPDATE population_exposure SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+UPDATE contagion SET country_name = 'South Korea'
+WHERE country_name = 'Korea, Republic of';
+
+-- Laos
+UPDATE risk_scores SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+UPDATE gdp SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+UPDATE rainfall SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+UPDATE crop_yield SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+UPDATE import_dependency SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+UPDATE conflict SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+UPDATE predictions SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+UPDATE early_warning SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+UPDATE population_exposure SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+UPDATE contagion SET country_name = 'Laos'
+WHERE country_name = 'Lao People''s Democratic Republic';
+
+-- Venezuela
+UPDATE risk_scores SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+UPDATE gdp SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+UPDATE rainfall SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+UPDATE crop_yield SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+UPDATE import_dependency SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+UPDATE conflict SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+UPDATE predictions SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+UPDATE early_warning SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+UPDATE population_exposure SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+UPDATE contagion SET country_name = 'Venezuela'
+WHERE country_name = 'Venezuela, Bolivarian Republic of';
+
+-- Moldova
+UPDATE risk_scores SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+UPDATE gdp SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+UPDATE rainfall SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+UPDATE crop_yield SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+UPDATE import_dependency SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+UPDATE conflict SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+UPDATE predictions SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+UPDATE early_warning SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+UPDATE population_exposure SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+UPDATE contagion SET country_name = 'Moldova'
+WHERE country_name = 'Moldova, Republic of';
+
+-- Tanzania
+UPDATE risk_scores SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+UPDATE gdp SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+UPDATE rainfall SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+UPDATE crop_yield SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+UPDATE import_dependency SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+UPDATE conflict SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+UPDATE predictions SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+UPDATE early_warning SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+UPDATE population_exposure SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+UPDATE contagion SET country_name = 'Tanzania'
+WHERE country_name = 'Tanzania, United Republic of';
+
+-- Vietnam
+UPDATE risk_scores SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+UPDATE gdp SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+UPDATE rainfall SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+UPDATE crop_yield SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+UPDATE import_dependency SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+UPDATE conflict SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+UPDATE predictions SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+UPDATE early_warning SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+UPDATE population_exposure SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+UPDATE contagion SET country_name = 'Vietnam'
+WHERE country_name = 'Viet Nam';
+
+-- Russia
+UPDATE risk_scores SET country_name = 'Russia'
+WHERE country_name = 'Russian Federation';
+UPDATE gdp SET country_name = 'Russia'
+WHERE country_name = 'Russian Federation';
+UPDATE rainfall SET country_name = 'Russia'
+WHERE country_name = 'Russian Federation';
+UPDATE crop_yield SET country_name = 'Russia'
+WHERE country_name = 'Russia Federation';
+UPDATE import_dependency SET country_name = 'Russia'
+WHERE country_name = 'Russian Federation';
+UPDATE conflict SET country_name = 'Russia'
+WHERE country_name = 'Russian Federation';
+UPDATE predictions SET country_name = 'Russia'
+WHERE country_name = 'Russian Federation';
+UPDATE early_warning SET country_name = 'Russia'
+WHERE country_name = 'Russian Federation';
+UPDATE population_exposure SET country_name = 'Russia'
+WHERE country_name = 'Russian Federation';
+UPDATE contagion SET country_name = 'Russia'
+WHERE country_name = 'Russian Federation';
+
+-- Turkey
+UPDATE risk_scores SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+UPDATE gdp SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+UPDATE rainfall SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+UPDATE crop_yield SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+UPDATE import_dependency SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+UPDATE conflict SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+UPDATE predictions SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+UPDATE early_warning SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+UPDATE population_exposure SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+UPDATE contagion SET country_name = 'Turkey'
+WHERE country_name = 'Türkiye';
+
+-- Micronesia
+UPDATE risk_scores SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+UPDATE gdp SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+UPDATE rainfall SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+UPDATE crop_yield SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+UPDATE import_dependency SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+UPDATE conflict SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+UPDATE predictions SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+UPDATE early_warning SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+UPDATE population_exposure SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+UPDATE contagion SET country_name = 'Micronesia'
+WHERE country_name = 'Micronesia, Federated States of';
+
+-- Cabo Verde → Cape Verde
+UPDATE risk_scores SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+UPDATE gdp SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+UPDATE rainfall SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+UPDATE crop_yield SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+UPDATE import_dependency SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+UPDATE conflict SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+UPDATE predictions SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+UPDATE early_warning SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+UPDATE population_exposure SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+UPDATE contagion SET country_name = 'Cape Verde'
+WHERE country_name = 'Cabo Verde';
+
+-- Eswatini → Swaziland
+UPDATE risk_scores SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+UPDATE gdp SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+UPDATE rainfall SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+UPDATE crop_yield SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+UPDATE import_dependency SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+UPDATE conflict SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+UPDATE predictions SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+UPDATE early_warning SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+UPDATE population_exposure SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+UPDATE contagion SET country_name = 'Swaziland'
+WHERE country_name = 'Eswatini';
+
+-- Timor-Leste → East Timor
+UPDATE risk_scores SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+UPDATE gdp SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+UPDATE rainfall SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+UPDATE crop_yield SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+UPDATE import_dependency SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+UPDATE conflict SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+UPDATE predictions SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+UPDATE early_warning SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+UPDATE population_exposure SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+UPDATE contagion SET country_name = 'East Timor'
+WHERE country_name = 'Timor-Leste';
+
+-- Cote d Ivoire → Ivory Coast
+UPDATE risk_scores SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+UPDATE gdp SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+UPDATE rainfall SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+UPDATE crop_yield SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+UPDATE import_dependency SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+UPDATE conflict SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+UPDATE predictions SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+UPDATE early_warning SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+UPDATE population_exposure SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+UPDATE contagion SET country_name = 'Ivory Coast'
+WHERE country_name = 'Côte d''Ivoire';
+
+-- Remove non country rows
+DELETE FROM risk_scores
+WHERE country_name IN (
+    'Heavily indebted poor countries (HIPC)',
+    'Least developed countries: UN classification',
+    'Bouvet Island',
+    'Cocos (Keeling) Islands',
+    'South Georgia and the South Sandwich Islands',
+    'United States Minor Outlying Islands',
+    'Bonaire, Sint Eustatius and Saba',
+    'Saint Martin (French part)',
+    'Sint Maarten (Dutch part)',
+    'Virgin Islands, U.S.',
+    'Northern Mariana Islands',
+    'Turks and Caicos Islands',
+    'Cayman Islands',
+    'Isle of Man',
+    'Faroe Islands',
+    'Bermuda',
+    'Aruba',
+    'Guam',
+    'Puerto Rico',
+    'Greenland',
+    'New Caledonia',
+    'French Polynesia',
+    'Western Sahara',
+    'Curaçao'
+);
+
+DELETE FROM predictions
+WHERE country_name IN (
+    'Heavily indebted poor countries (HIPC)',
+    'Least developed countries: UN classification',
+    'Bouvet Island',
+    'Cocos (Keeling) Islands',
+    'South Georgia and the South Sandwich Islands',
+    'United States Minor Outlying Islands',
+    'Bonaire, Sint Eustatius and Saba',
+    'Saint Martin (French part)',
+    'Sint Maarten (Dutch part)',
+    'Virgin Islands, U.S.',
+    'Northern Mariana Islands',
+    'Turks and Caicos Islands',
+    'Cayman Islands',
+    'Isle of Man',
+    'Faroe Islands',
+    'Bermuda',
+    'Aruba',
+    'Guam',
+    'Puerto Rico',
+    'Greenland',
+    'New Caledonia',
+    'French Polynesia',
+    'Western Sahara',
+    'Curaçao'
+);
+
+DELETE FROM early_warning
+WHERE country_name IN (
+    'Heavily indebted poor countries (HIPC)',
+    'Least developed countries: UN classification',
+    'Bouvet Island',
+    'Cocos (Keeling) Islands',
+    'South Georgia and the South Sandwich Islands',
+    'United States Minor Outlying Islands',
+    'Bonaire, Sint Eustatius and Saba',
+    'Saint Martin (French part)',
+    'Sint Maarten (Dutch part)',
+    'Virgin Islands, U.S.',
+    'Northern Mariana Islands',
+    'Turks and Caicos Islands',
+    'Cayman Islands',
+    'Isle of Man',
+    'Faroe Islands',
+    'Bermuda',
+    'Aruba',
+    'Guam',
+    'Puerto Rico',
+    'Greenland',
+    'New Caledonia',
+    'French Polynesia',
+    'Western Sahara',
+    'Curaçao'
+);
+
+DELETE FROM population_exposure
+WHERE country_name IN (
+    'Heavily indebted poor countries (HIPC)',
+    'Least developed countries: UN classification',
+    'Bouvet Island',
+    'Cocos (Keeling) Islands',
+    'South Georgia and the South Sandwich Islands',
+    'United States Minor Outlying Islands',
+    'Bonaire, Sint Eustatius and Saba',
+    'Saint Martin (French part)',
+    'Sint Maarten (Dutch part)',
+    'Virgin Islands, U.S.',
+    'Northern Mariana Islands',
+    'Turks and Caicos Islands',
+    'Cayman Islands',
+    'Isle of Man',
+    'Faroe Islands',
+    'Bermuda',
+    'Aruba',
+    'Guam',
+    'Puerto Rico',
+    'Greenland',
+    'New Caledonia',
+    'French Polynesia',
+    'Western Sahara',
+    'Curaçao'
+);
+
+SELECT DISTINCT country_name
+FROM gdp
+WHERE country_name = 'Greenland';
+
+SELECT DISTINCT country_name
+FROM risk_scores
+WHERE country_name = 'Greenland';
+
+SELECT *
+FROM master_food_security
+WHERE country_name = 'Greenland';
+
+SELECT 'gdp' AS table_name, COUNT(*) 
+FROM gdp WHERE country_name = 'South Africa'
+
+UNION ALL
+
+SELECT 'rainfall', COUNT(*)
+FROM rainfall WHERE country_name = 'South Africa'
+
+UNION ALL
+
+SELECT 'crop_yield', COUNT(*)
+FROM crop_yield WHERE country_name = 'South Africa'
+
+UNION ALL
+
+SELECT 'conflict', COUNT(*)
+FROM conflict WHERE country_name = 'South Africa'
+
+UNION ALL
+
+SELECT 'import_dependency', COUNT(*)
+FROM import_dependency WHERE country_name = 'South Africa';
+
+SELECT DISTINCT country_name
+FROM gdp
+WHERE country_name ILIKE '%south%afr%'
+
+UNION
+
+SELECT DISTINCT country_name
+FROM gdp
+WHERE country_name ILIKE '%congo%'
+
+UNION
+
+SELECT DISTINCT country_name
+FROM gdp
+WHERE country_name ILIKE '%central%afr%'
+
+UNION
+
+SELECT DISTINCT country_name
+FROM gdp
+WHERE country_name ILIKE '%slovak%'
+
+UNION
+
+SELECT DISTINCT country_name
+FROM gdp
+WHERE country_name ILIKE '%kyrg%'
+
+UNION
+
+SELECT DISTINCT country_name
+FROM gdp
+WHERE country_name ILIKE '%somal%'
+
+ORDER BY country_name;
+
+SELECT COUNT(*) FROM gdp;
